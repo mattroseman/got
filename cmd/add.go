@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"crypto/sha1"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +53,22 @@ func add(filePath string) error {
 		return fmt.Errorf("no file at %s was found", filePath)
 	}
 
-	// TODO zlib compress file and SHA-1 hash it
+	// read in file at given path
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// SHA-1 hash file contents
+	h := sha1.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	hash := fmt.Sprintf("%x", h.Sum(nil))
+	fmt.Printf("SHA-1 hash: %s\n", hash)
+
+	// TODO zlib compress file contents
 	// TODO store compressed file in .got/objects directory with dir/filenam matching hash
 
 	return nil
