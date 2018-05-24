@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -71,17 +72,27 @@ func add(filePath string) error {
 		return err
 	}
 	hash := fmt.Sprintf("%x", h.Sum(nil))
-	fmt.Printf("SHA-1 hash: %s\n", hash)
 
-	// zlib compress file contents
-	wc := zlib.NewWriter(os.Stdout)
-	defer wc.Close()
+	// TODO what if directory already exists
+	// make object directory named after first 2 bytes of sha-1 hash
+	objectDir := fmt.Sprintf(".got/objects/%s", hash[:2])
+	if err := os.Mkdir(objectDir, 0755); err != nil {
+		return err
+	}
 
-	fmt.Printf("zlib compression: ")
+	// TODO what if this file has already been added
+	// create file for storing the compressed contents of this file
+	objectFileName := hash[2:]
+	objectFile, err := os.Create(path.Join(objectDir, objectFileName))
+	if err != nil {
+		return err
+	}
+	defer objectFile.Close()
+
+	// zlib compress file contents and store in objects directory
+	wc := zlib.NewWriter(objectFile)
 	wc.Write(buf.Bytes())
-	fmt.Println()
-
-	// TODO store compressed file in .got/objects directory with dir/filenam matching hash
+	wc.Close()
 
 	return nil
 }
