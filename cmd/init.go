@@ -14,8 +14,8 @@ var initCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// check if .got directory already exists
-		if _, err := os.Stat(".got/"); err == nil {
-			fmt.Println("This directory is already a got repository")
+		if _, ok := getGotRootDir(); ok {
+			fmt.Println("You are already in a got repository")
 			os.Exit(1)
 		}
 	},

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 
 	"github.com/spf13/cobra"
 )
@@ -28,7 +29,7 @@ func init() {
 
 func view(hash string) error {
 	// check that the directory for an object with the given hash exists
-	objectFilePath := fmt.Sprintf(".got/objects/%s/%s", hash[:2], hash[2:])
+	objectFilePath := path.Join(gotRootDir, "objects", hash[:2], hash[2:])
 	if _, err := os.Stat(objectFilePath); os.IsNotExist(err) {
 		return errors.New("no got object with given hash was found")
 	}
