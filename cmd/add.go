@@ -73,11 +73,12 @@ func add(filePath string) error {
 	}
 	hash := fmt.Sprintf("%x", h.Sum(nil))
 
-	// TODO what if directory already exists
-	// make object directory named after first 2 bytes of sha-1 hash
+	// make object directory named after first 2 bytes of sha-1 hash if it doesn't already exist
 	objectDir := fmt.Sprintf(".got/objects/%s", hash[:2])
-	if err := os.Mkdir(objectDir, 0755); err != nil {
-		return err
+	if _, err := os.Stat(objectDir); os.IsNotExist(err) {
+		if err := os.Mkdir(objectDir, 0755); err != nil {
+			return err
+		}
 	}
 
 	// TODO what if this file has already been added
