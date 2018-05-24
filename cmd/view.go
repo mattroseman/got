@@ -1,10 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"compress/zlib"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 
@@ -34,19 +34,34 @@ func view(hash string) error {
 		return errors.New("no got object with given hash was found")
 	}
 
+	// read in the object file
 	objectFile, err := os.Open(objectFilePath)
 	if err != nil {
 		return err
 	}
 	defer objectFile.Close()
 
+	// uncompress the object file
 	rc, err := zlib.NewReader(objectFile)
 	if err != nil {
 		return err
 	}
-	// TODO remove object type and size, all before a null byte
-	io.Copy(os.Stdout, rc)
-	rc.Close()
+	defer rc.Close()
+
+	// split the object file into header and file contents
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(rc)
+	if err != nil {
+		return err
+	}
+	header, err := buf.ReadBytes('\000')
+	if err != nil {
+		return err
+	}
+	content := buf.String()
+
+	fmt.Printf("Header: %s\n", header)
+	fmt.Printf("Content:\n%s\n", content)
 
 	return nil
 }
