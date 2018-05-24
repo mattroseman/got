@@ -44,6 +44,7 @@ func view(hash string) error {
 	if err != nil {
 		return err
 	}
+	// TODO remove object type and size, all before a null byte
 	io.Copy(os.Stdout, rc)
 	rc.Close()
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -57,18 +58,17 @@ func add(filePath string) error {
 	}
 
 	// read in file at given path
-	f, err := os.Open(filePath)
+	fileBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	buf := bytes.NewBuffer(make([]byte, 0))
-	tee := io.TeeReader(f, buf)
+	// prepend got object header to file contents
+	fileBytes = append([]byte(fmt.Sprintf("blob %d\000", len(fileBytes))), fileBytes...)
 
 	// SHA-1 hash file contents
 	h := sha1.New()
-	if _, err := io.Copy(h, tee); err != nil {
+	if _, err := io.Copy(h, bytes.NewReader(fileBytes)); err != nil {
 		return err
 	}
 	hash := fmt.Sprintf("%x", h.Sum(nil))
@@ -92,7 +92,7 @@ func add(filePath string) error {
 
 	// zlib compress file contents and store in objects directory
 	wc := zlib.NewWriter(objectFile)
-	wc.Write(buf.Bytes())
+	wc.Write(fileBytes)
 	wc.Close()
 
 	return nil
