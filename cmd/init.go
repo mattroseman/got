@@ -12,6 +12,7 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new got repository",
 	Long:  "Create a new got repository for managing version control of current directory",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := initGot(); err != nil {
 			fmt.Println(err)
