@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -13,6 +12,13 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new got repository",
 	Long:  "Create a new got repository for managing version control of current directory",
 	Args:  cobra.NoArgs,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// check if .got directory already exists
+		if _, err := os.Stat(".got/"); err == nil {
+			fmt.Println("This directory is already a got repository")
+			os.Exit(1)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := initGot(); err != nil {
 			fmt.Println(err)
@@ -27,11 +33,6 @@ func init() {
 // initGot initializes a new got repository.
 // returns error if .got directory already exists
 func initGot() error {
-	// check if .got directory already exists
-	if _, err := os.Stat(".got/"); err == nil {
-		return errors.New("This directory is already a got repository")
-	}
-
 	// creat .got directory and objects subdirectory
 	if err := os.MkdirAll(".got/objects", 0755); err != nil {
 		return err
