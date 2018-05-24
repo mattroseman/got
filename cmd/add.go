@@ -46,7 +46,11 @@ func add(filePath string) error {
 		return errors.New("file is not in current got repository")
 	}
 
-	// TODO check if file exists
+	// check if file exists
+	if _, err := os.Stat(fileAbsPath); os.IsNotExist(err) {
+		return fmt.Errorf("no file at %s was found", filePath)
+	}
+
 	// TODO zlib compress file and SHA-1 hash it
 	// TODO store compressed file in .got/objects directory with dir/filenam matching hash
 
