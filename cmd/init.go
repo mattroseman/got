@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mroseman95/got/object"
 	"github.com/spf13/cobra"
 )
 
@@ -33,14 +34,15 @@ func init() {
 // initGot initializes a new got repository.
 // returns error if .got directory already exists
 func initGot() error {
-	// creat .got directory and objects subdirectory
+	// create .got directory and objects subdirectory
 	if err := os.MkdirAll(".got/objects", 0755); err != nil {
 		return err
 	}
 
-	// TODO rename this later
-	// create empty master tree
-	// fileBytes := []byte("tree 0\000")
+	// create empty staging tree
+	if _, err := object.NewEmptyTree(".got/objects"); err != nil {
+		return err
+	}
 
 	return nil
 }
