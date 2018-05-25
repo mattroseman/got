@@ -21,7 +21,7 @@ type treeChild struct {
 }
 
 // NewTree creates a new tree given a filepath
-func NewTree(filePath, objectsDir string) (*Tree, error) {
+func NewTree(filePath, gotRootDir string) (*Tree, error) {
 	children := make([]treeChild, 0)
 
 	if fi, err := os.Stat(filePath); err != nil {
@@ -35,7 +35,7 @@ func NewTree(filePath, objectsDir string) (*Tree, error) {
 
 		for _, file := range files {
 			if file.IsDir() {
-				subtree, err := NewTree(path.Join(filePath, file.Name()), objectsDir)
+				subtree, err := NewTree(path.Join(filePath, file.Name()), gotRootDir)
 				if err != nil {
 					return nil, err
 				}
@@ -54,7 +54,7 @@ func NewTree(filePath, objectsDir string) (*Tree, error) {
 					Name:        file.Name(),
 				})
 			} else {
-				blob, err := NewBlob(path.Join(filePath, file.Name()), objectsDir)
+				blob, err := NewBlob(path.Join(filePath, file.Name()), gotRootDir)
 				if err != nil {
 					return nil, err
 				}
@@ -74,7 +74,7 @@ func NewTree(filePath, objectsDir string) (*Tree, error) {
 		}
 	} else {
 		// If given filePath is a file
-		blob, err := NewBlob(filePath, objectsDir)
+		blob, err := NewBlob(filePath, gotRootDir)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +108,7 @@ func NewTree(filePath, objectsDir string) (*Tree, error) {
 		children,
 	}
 
-	if _, err := tree.Save(objectsDir); err != nil {
+	if _, err := tree.Save(gotRootDir); err != nil {
 		return nil, err
 	}
 

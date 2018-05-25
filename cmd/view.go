@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"path"
 
 	"github.com/mroseman95/got/object"
 	"github.com/spf13/cobra"
@@ -25,8 +24,7 @@ func init() {
 }
 
 func view(hash string) error {
-	objectsDir := path.Join(gotRootDir, "objects")
-	obj, err := object.Load(objectsDir, hash)
+	obj, err := object.Load(gotRootDir, hash)
 	if err != nil {
 		return err
 	}

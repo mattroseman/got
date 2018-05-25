@@ -11,7 +11,7 @@ type Blob struct {
 }
 
 // NewBlob creates a new blob object that contains the contents of the given file.
-func NewBlob(filePath, objectsDir string) (*Blob, error) {
+func NewBlob(filePath, gotRootDir string) (*Blob, error) {
 	fileBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func NewBlob(filePath, objectsDir string) (*Blob, error) {
 		},
 	}
 
-	if _, err := blob.Save(objectsDir); err != nil {
+	if _, err := blob.Save(gotRootDir); err != nil {
 		return nil, err
 	}
 

@@ -87,8 +87,10 @@ func uncompress(objectFile *os.File) (*Object, error) {
 	}, nil
 }
 
-// Save will save this object to the specified objects directory, and return it's hash
-func (object Object) Save(objectsDir string) (string, error) {
+// Save will save this object to the specifiec got repo directory, and return it's hash
+func (object Object) Save(gotRootDir string) (string, error) {
+	objectsDir := path.Join(gotRootDir, "objects")
+
 	hash, err := object.Hash()
 	if err != nil {
 		return "", err
