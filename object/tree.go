@@ -20,31 +20,6 @@ type treeChild struct {
 	Name        string
 }
 
-// NewEmptyTree creates a new tree object, but with no content in it yet.
-func NewEmptyTree(objectsDir string) (*Tree, error) {
-	children := make([]treeChild, 0)
-
-	// save contents of this Tree to the objects directory
-	content := generateContent(children)
-	header := []byte(fmt.Sprintf("tree %d\000", len(content)))
-
-	tree := &Tree{
-		&Object{
-			Type:    "tree",
-			Length:  len(content),
-			Content: content,
-			Header:  header,
-		},
-		children,
-	}
-
-	if _, err := tree.Save(objectsDir); err != nil {
-		return nil, err
-	}
-
-	return tree, nil
-}
-
 // NewTree creates a new tree given a filepath
 func NewTree(filePath, objectsDir string) (*Tree, error) {
 	children := make([]treeChild, 0)

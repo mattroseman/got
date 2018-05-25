@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mroseman95/got/object"
 	"github.com/spf13/cobra"
 )
 
@@ -36,11 +35,6 @@ func init() {
 func initGot() error {
 	// create .got directory and objects subdirectory
 	if err := os.MkdirAll(".got/objects", 0755); err != nil {
-		return err
-	}
-
-	// create empty staging tree
-	if _, err := object.NewEmptyTree(".got/objects"); err != nil {
 		return err
 	}
 
