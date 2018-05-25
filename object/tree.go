@@ -98,8 +98,6 @@ func NewTree(filePath, objectsDir string) (*Tree, error) {
 	content := generateContent(children)
 	header := []byte(fmt.Sprintf("tree %d\000", len(content)))
 
-	// content = append(header, content...)
-
 	tree := &Tree{
 		&Object{
 			Type:    "tree",
@@ -110,7 +108,9 @@ func NewTree(filePath, objectsDir string) (*Tree, error) {
 		children,
 	}
 
-	tree.Save(objectsDir)
+	if _, err := tree.Save(objectsDir); err != nil {
+		return nil, err
+	}
 
 	return tree, nil
 }
