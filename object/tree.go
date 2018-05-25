@@ -1,10 +1,13 @@
 package object
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 )
 
 // Tree represents a got object containing pointers to other got objects
@@ -23,6 +26,21 @@ type treeChild struct {
 // NewTree creates a new tree given a filepath
 func NewTree(filePath, gotRootDir string) (*Tree, error) {
 	children := make([]treeChild, 0)
+
+	// Convert filePath and gotRootDir to absolute paths, if they aren't already
+	filePath, err := filepath.Abs(filePath)
+	if err != nil {
+		return nil, err
+	}
+	gotRootDir, err = filepath.Abs(gotRootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Double check that given filePath is withing gotRootDir
+	if !strings.HasPrefix(filePath, gotRootDir) {
+		return nil, errors.New("can't construct tree, filePath isn't within gotRootDir")
+	}
 
 	if fi, err := os.Stat(filePath); err != nil {
 		return nil, err

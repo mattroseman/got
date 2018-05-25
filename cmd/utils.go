@@ -3,7 +3,6 @@ package cmd
 import (
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 )
 
@@ -25,7 +24,7 @@ func getGotRootDir() (string, bool) {
 
 		for _, file := range files {
 			if file.Name() == ".got" {
-				return path.Join(gotRootDir, ".got"), true
+				return gotRootDir, true
 			}
 		}
 
