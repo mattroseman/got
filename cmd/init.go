@@ -38,5 +38,9 @@ func initGot() error {
 		return err
 	}
 
+	// TODO rename this later
+	// create empty master tree
+	// fileBytes := []byte("tree 0\000")
+
 	return nil
 }

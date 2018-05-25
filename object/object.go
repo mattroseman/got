@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -25,24 +24,9 @@ type Object struct {
 	Header []byte
 }
 
-// NewBlob creates a new Object with mode blob and content from file at the given path
-func NewBlob(filePath string) (*Object, error) {
-	fileBytes, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Object{
-		Type:    "blob",
-		Length:  len(fileBytes),
-		Content: fileBytes,
-		Header:  []byte(fmt.Sprintf("%s %d\000", "blob", len(fileBytes))),
-	}, nil
-}
-
-// hash combines this objects type, length, and content and computes the SHA-1 hash
+// Hash combines this objects type, length, and content and computes the SHA-1 hash
 // returning that as a string
-func (object Object) hash() (string, error) {
+func (object Object) Hash() (string, error) {
 	fileBytes := append(object.Header, object.Content...)
 
 	h := sha1.New()
@@ -105,7 +89,7 @@ func uncompress(objectFile *os.File) (*Object, error) {
 
 // Save will save this object to the specified objects directory, and return it's hash
 func (object Object) Save(objectsDir string) (string, error) {
-	hash, err := object.hash()
+	hash, err := object.Hash()
 	if err != nil {
 		return "", err
 	}

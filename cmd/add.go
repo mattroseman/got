@@ -53,14 +53,7 @@ func add(filePath string) error {
 		return fmt.Errorf("no file at %s was found", filePath)
 	}
 
-	obj, err := object.NewBlob(fileAbsPath)
-	if err != nil {
-		return err
-	}
-
-	objectsDir := path.Join(gotRootDir, "objects")
-
-	if _, err = obj.Save(objectsDir); err != nil {
+	if _, err := object.NewTree(fileAbsPath, path.Join(gotRootDir, "objects")); err != nil {
 		return err
 	}
 
