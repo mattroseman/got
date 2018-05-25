@@ -1,18 +1,14 @@
 package cmd
 
 import (
-	"bytes"
-	"compress/zlib"
-	"crypto/sha1"
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/mroseman95/got/object"
 	"github.com/spf13/cobra"
 )
 
@@ -57,43 +53,16 @@ func add(filePath string) error {
 		return fmt.Errorf("no file at %s was found", filePath)
 	}
 
-	// read in file at given path
-	fileBytes, err := ioutil.ReadFile(filePath)
+	o, err := object.NewBlob(fileAbsPath)
 	if err != nil {
 		return err
 	}
 
-	// prepend got object header to file contents
-	fileBytes = append([]byte(fmt.Sprintf("blob %d\000", len(fileBytes))), fileBytes...)
+	objectsDir := path.Join(gotRootDir, "objects")
 
-	// SHA-1 hash file contents
-	h := sha1.New()
-	if _, err := io.Copy(h, bytes.NewReader(fileBytes)); err != nil {
+	if _, err = o.Save(objectsDir); err != nil {
 		return err
 	}
-	hash := fmt.Sprintf("%x", h.Sum(nil))
-
-	// make object directory named after first 2 bytes of sha-1 hash if it doesn't already exist
-	objectDir := path.Join(gotRootDir, "objects", hash[:2])
-	if _, err := os.Stat(objectDir); os.IsNotExist(err) {
-		if err := os.Mkdir(objectDir, 0755); err != nil {
-			return err
-		}
-	}
-
-	// TODO what if this file has already been added
-	// create file for storing the compressed contents of this file
-	objectFileName := hash[2:]
-	objectFile, err := os.Create(path.Join(objectDir, objectFileName))
-	if err != nil {
-		return err
-	}
-	defer objectFile.Close()
-
-	// zlib compress file contents and store in objects directory
-	wc := zlib.NewWriter(objectFile)
-	wc.Write(fileBytes)
-	wc.Close()
 
 	return nil
 }

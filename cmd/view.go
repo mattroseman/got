@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"bytes"
-	"compress/zlib"
-	"errors"
 	"fmt"
-	"os"
 	"path"
 
+	"github.com/mroseman95/got/object"
 	"github.com/spf13/cobra"
 )
 
@@ -28,40 +25,14 @@ func init() {
 }
 
 func view(hash string) error {
-	// check that the directory for an object with the given hash exists
-	objectFilePath := path.Join(gotRootDir, "objects", hash[:2], hash[2:])
-	if _, err := os.Stat(objectFilePath); os.IsNotExist(err) {
-		return errors.New("no got object with given hash was found")
-	}
-
-	// read in the object file
-	objectFile, err := os.Open(objectFilePath)
+	objectsDir := path.Join(gotRootDir, "objects")
+	o, err := object.Load(objectsDir, hash)
 	if err != nil {
 		return err
 	}
-	defer objectFile.Close()
 
-	// uncompress the object file
-	rc, err := zlib.NewReader(objectFile)
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-
-	// split the object file into header and file contents
-	var buf bytes.Buffer
-	_, err = buf.ReadFrom(rc)
-	if err != nil {
-		return err
-	}
-	header, err := buf.ReadBytes('\000')
-	if err != nil {
-		return err
-	}
-	content := buf.String()
-
-	fmt.Printf("Header: %s\n", header)
-	fmt.Printf("Content:\n%s\n", content)
+	fmt.Printf("Header: %s\n", o.Header)
+	fmt.Printf("Content:\n%s\n", o.Content)
 
 	return nil
 }
