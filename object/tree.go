@@ -17,18 +17,18 @@ type Tree struct {
 }
 
 type treeChild struct {
-	Mode        int
+	Mode        string
 	Type        string
 	HashPointer string
 	Name        string
 }
 
-// NewTree creates a new tree given a filepath
-func NewTree(filePath, gotRootDir string) (*Tree, error) {
+// NewTree creates a new tree given a filepath to a directory
+func NewTree(dirPath, gotRootDir string) (*Tree, error) {
 	children := make([]treeChild, 0)
 
-	// Convert filePath and gotRootDir to absolute paths, if they aren't already
-	filePath, err := filepath.Abs(filePath)
+	// Convert dirPath and gotRootDir to absolute paths, if they aren't already
+	dirPath, err := filepath.Abs(dirPath)
 	if err != nil {
 		return nil, err
 	}
@@ -37,82 +37,68 @@ func NewTree(filePath, gotRootDir string) (*Tree, error) {
 		return nil, err
 	}
 
-	// Double check that given filePath is withing gotRootDir
-	if !strings.HasPrefix(filePath, gotRootDir) {
-		return nil, errors.New("can't construct tree, filePath isn't within gotRootDir")
+	// Double check that given dirPath is within gotRootDir
+	if !strings.HasPrefix(dirPath, gotRootDir) {
+		return nil, errors.New("can't construct tree, dirPath isn't within gotRootDir")
 	}
 
-	if fi, err := os.Stat(filePath); err != nil {
+	// Check that dirPath is a directory
+	if fi, err := os.Stat(dirPath); err != nil {
 		return nil, err
-	} else if fi.IsDir() {
-		// If given filePath is a directory
-		files, err := ioutil.ReadDir(filePath)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, file := range files {
-			if file.IsDir() {
-				subtree, err := NewTree(path.Join(filePath, file.Name()), gotRootDir)
-				if err != nil {
-					return nil, err
-				}
-
-				// get subtree hash
-				hash, err := subtree.Hash()
-				if err != nil {
-					return nil, err
-				}
-
-				// add child to Tree
-				children = append(children, treeChild{
-					Mode:        040000,
-					Type:        "tree",
-					HashPointer: hash,
-					Name:        file.Name(),
-				})
-			} else {
-				blob, err := NewBlob(path.Join(filePath, file.Name()), gotRootDir)
-				if err != nil {
-					return nil, err
-				}
-
-				hash, err := blob.Hash()
-				if err != nil {
-					return nil, err
-				}
-
-				children = append(children, treeChild{
-					Mode:        100644,
-					Type:        "blob",
-					HashPointer: hash,
-					Name:        file.Name(),
-				})
-			}
-		}
-	} else {
-		// If given filePath is a file
-		blob, err := NewBlob(filePath, gotRootDir)
-		if err != nil {
-			return nil, err
-		}
-
-		// get blob hash
-		hash, err := blob.Hash()
-		if err != nil {
-			return nil, err
-		}
-
-		// tree has just one child which is a pointer to the file contents blob
-		children = append(children, treeChild{
-			Mode:        100644,
-			Type:        "blob",
-			HashPointer: hash,
-			Name:        fi.Name(),
-		})
+	} else if !fi.IsDir() {
+		return nil, errors.New("cannot create tree off of single file")
 	}
 
-	// save contents of this Tree to the objects directory
+	files, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// iterate through all the contents in dirPath
+	for _, file := range files {
+		if file.IsDir() {
+			// for subdirectories, recursively call NewTree on them, and then add the returned
+			// subtree as a child to tree
+			subtree, err := NewTree(path.Join(dirPath, file.Name()), gotRootDir)
+			if err != nil {
+				return nil, err
+			}
+
+			// get subtree hash
+			hash, err := subtree.Hash()
+			if err != nil {
+				return nil, err
+			}
+
+			// add child to tree
+			children = append(children, treeChild{
+				Mode:        "040000",
+				Type:        "tree",
+				HashPointer: hash,
+				Name:        file.Name(),
+			})
+		} else {
+			// For files in directory, create a new blob object
+			blob, err := NewBlob(path.Join(dirPath, file.Name()), gotRootDir)
+			if err != nil {
+				return nil, err
+			}
+
+			hash, err := blob.Hash()
+			if err != nil {
+				return nil, err
+			}
+
+			// add the file's blob object as a child to tree
+			children = append(children, treeChild{
+				Mode:        "100644",
+				Type:        "blob",
+				HashPointer: hash,
+				Name:        file.Name(),
+			})
+		}
+	}
+
 	content := generateContent(children)
 	header := []byte(fmt.Sprintf("tree %d\000", len(content)))
 
@@ -137,7 +123,7 @@ func NewTree(filePath, gotRootDir string) (*Tree, error) {
 func generateContent(children []treeChild) []byte {
 	content := ""
 	for i, child := range children {
-		content += fmt.Sprintf("%d %s %s %s",
+		content += fmt.Sprintf("%s %s %s %s",
 			child.Mode, child.Type, child.HashPointer, child.Name,
 		)
 

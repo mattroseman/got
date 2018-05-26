@@ -9,7 +9,9 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Object represents a got object containing a tree or blob
@@ -22,6 +24,91 @@ type Object struct {
 	Content []byte
 
 	Header []byte
+}
+
+// New creates a new tree/blob depending on the filepath given
+func New(filePath, gotRootDir string) (object *Object, err error) {
+	// convert filePath, and gotRootDir to absolute paths
+	filePath, err = filepath.Abs(filePath)
+	if err != nil {
+		return nil, err
+	}
+	gotRootDir, err = filepath.Abs(gotRootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// check that filePath is within gotRootDir
+	if !strings.HasPrefix(filePath, gotRootDir) {
+		return nil, errors.New("filePath is not withing gotRootDir")
+	}
+
+	// check that filePath points to an existing file/directory
+	if fi, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, errors.New("filePath does not exist")
+		}
+
+		return nil, err
+	} else if fi.IsDir() {
+		// create tree for directory
+		tree, err := NewTree(filePath, gotRootDir)
+		if err != nil {
+			return nil, err
+		}
+		object = tree.Object
+	} else {
+		// create blob for file
+		blob, err := NewBlob(filePath, gotRootDir)
+		if err != nil {
+			return nil, err
+		}
+		object = blob.Object
+	}
+
+	hash, err := object.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	// add tree objects for each parent directory until gotRootDir is reached
+	parentPath := filepath.Dir(filePath)
+	childName := filepath.Base(filePath)
+	children := make([]treeChild, 0)
+	for parentPath != gotRootDir {
+		children = []treeChild{
+			{
+				Mode:        "040000",
+				Type:        "tree",
+				HashPointer: hash,
+				Name:        childName,
+			},
+		}
+
+		content := generateContent(children)
+		header := []byte(fmt.Sprintf("tree %d\000", len(content)))
+
+		object = &Object{
+			Type:    "tree",
+			Length:  len(content),
+			Content: content,
+			Header:  header,
+		}
+
+		hash, err = object.Hash()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := object.Save(gotRootDir); err != nil {
+			return nil, err
+		}
+
+		childName = filepath.Base(parentPath)
+		parentPath = filepath.Dir(parentPath)
+	}
+
+	return object, nil
 }
 
 // Hash combines this objects type, length, and content and computes the SHA-1 hash
@@ -119,8 +206,8 @@ func (object Object) Save(gotRootDir string) (string, error) {
 
 // Load will read in an object with the given hash, and return a pointer to a new
 // Object struct
-func Load(objectsDir, hash string) (*Object, error) {
-	objectFilePath := path.Join(objectsDir, hash[:2], hash[2:])
+func Load(gotRootDir, hash string) (*Object, error) {
+	objectFilePath := path.Join(gotRootDir, ".got", "objects", hash[:2], hash[2:])
 
 	// check that the directory for an object with the given hash exists in the given objectsDir
 	if _, err := os.Stat(objectFilePath); os.IsNotExist(err) {

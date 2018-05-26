@@ -52,7 +52,7 @@ func add(filePath string) error {
 		return fmt.Errorf("no file at %s was found", filePath)
 	}
 
-	if _, err := object.NewTree(fileAbsPath, gotRootDir); err != nil {
+	if _, err := object.New(fileAbsPath, gotRootDir); err != nil {
 		return err
 	}
 
