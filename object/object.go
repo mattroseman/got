@@ -26,6 +26,38 @@ type Object struct {
 	Header []byte
 }
 
+// validatePath checks that filePath is valid given the gotRootDir, and returns an err with any issues
+func validatePath(filePath, gotRootDir string) error {
+	filePath, err := filepath.Abs(filePath)
+	if err != nil {
+		return err
+	}
+	gotRootDir, err = filepath.Abs(gotRootDir)
+	if err != nil {
+		return err
+	}
+
+	// check that filePath is within gotRootDir
+	if !strings.HasPrefix(filePath, gotRootDir) {
+		return errors.New("filePath is not withing gotRootDir")
+	}
+
+	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return errors.New("filePath is not within gotRootDir")
+		}
+
+		return err
+	}
+
+	// check if the filePath is within the .got directory
+	if strings.HasPrefix(filePath, path.Join(gotRootDir, ".got")) {
+		return errors.New("filePath is in .got directory")
+	}
+
+	return nil
+}
+
 // New creates a new tree/blob depending on the filepath given
 func New(filePath, gotRootDir string) (object *Object, err error) {
 	// convert filePath, and gotRootDir to absolute paths
@@ -38,17 +70,18 @@ func New(filePath, gotRootDir string) (object *Object, err error) {
 		return nil, err
 	}
 
-	// check that filePath is within gotRootDir
-	if !strings.HasPrefix(filePath, gotRootDir) {
-		return nil, errors.New("filePath is not withing gotRootDir")
+	if err := validatePath(filePath, gotRootDir); err != nil {
+		if err.Error() == "filePath is in .got directory" {
+			// simply skip this file/directory
+			return nil, nil
+		}
+
+		return nil, err
 	}
 
 	// check that filePath points to an existing file/directory
 	if fi, err := os.Stat(filePath); err != nil {
-		if os.IsNotExist(err) {
-			return nil, errors.New("filePath does not exist")
-		}
-
+		// Any errors here should be cought in validatePath
 		return nil, err
 	} else if fi.IsDir() {
 		// create tree for directory
