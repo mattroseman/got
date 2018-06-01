@@ -4,255 +4,130 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
-	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
-	"strings"
 )
 
-// Object represents a got object containing a tree or blob
+// Object represents a got object containing a tree or blob.
 type Object struct {
-	// Type is either blob or tree
-	Type string
-	// Length is the number of bytes content is
-	Length int
-	// Content is the actuall content of the object
+	Type    string
 	Content []byte
-
-	Header []byte
 }
 
-// validatePath checks that filePath is valid given the gotRootDir, and returns an err with any issues
-func validatePath(filePath, gotRootDir string) error {
-	filePath, err := filepath.Abs(filePath)
+// New creates a new blob for file at filePath, and saves the blob to the
+// got repositories objects direcotry.
+func New(gotRootDir, filePath string) error {
+	// TODO if path is directory, walk directory and add all blobs
+
+	blob, err := newBlob(filePath)
 	if err != nil {
 		return err
 	}
-	gotRootDir, err = filepath.Abs(gotRootDir)
-	if err != nil {
+
+	if err := blob.saveBlob(gotRootDir); err != nil {
 		return err
 	}
 
-	// check that filePath is within gotRootDir
-	if !strings.HasPrefix(filePath, gotRootDir) {
-		return errors.New("filePath is not withing gotRootDir")
-	}
-
-	if _, err := os.Stat(filePath); err != nil {
-		if os.IsNotExist(err) {
-			return errors.New("filePath is not within gotRootDir")
-		}
-
-		return err
-	}
-
-	// check if the filePath is within the .got directory
-	if strings.HasPrefix(filePath, path.Join(gotRootDir, ".got")) {
-		return errors.New("filePath is in .got directory")
-	}
+	// TODO add blob to index
 
 	return nil
 }
 
-// New creates a new tree/blob depending on the filepath given
-func New(filePath, gotRootDir string) (object *Object, err error) {
-	// convert filePath, and gotRootDir to absolute paths
-	filePath, err = filepath.Abs(filePath)
-	if err != nil {
-		return nil, err
-	}
-	gotRootDir, err = filepath.Abs(gotRootDir)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := validatePath(filePath, gotRootDir); err != nil {
-		if err.Error() == "filePath is in .got directory" {
-			// simply skip this file/directory
-			return nil, nil
-		}
-
-		return nil, err
-	}
-
-	// check that filePath points to an existing file/directory
-	if fi, err := os.Stat(filePath); err != nil {
-		// Any errors here should be cought in validatePath
-		return nil, err
-	} else if fi.IsDir() {
-		// create tree for directory
-		tree, err := NewTree(filePath, gotRootDir)
-		if err != nil {
-			return nil, err
-		}
-		object = tree.Object
-	} else {
-		// create blob for file
-		blob, err := NewBlob(filePath, gotRootDir)
-		if err != nil {
-			return nil, err
-		}
-		object = blob.Object
-	}
-
-	hash, err := object.Hash()
-	if err != nil {
-		return nil, err
-	}
-
-	// add tree objects for each parent directory until gotRootDir is reached
-	parentPath := filepath.Dir(filePath)
-	childName := filepath.Base(filePath)
-	children := make([]treeChild, 0)
-	for parentPath != gotRootDir {
-		children = []treeChild{
-			{
-				Mode:        "040000",
-				Type:        "tree",
-				HashPointer: hash,
-				Name:        childName,
-			},
-		}
-
-		content := generateContent(children)
-		header := []byte(fmt.Sprintf("tree %d\000", len(content)))
-
-		object = &Object{
-			Type:    "tree",
-			Length:  len(content),
-			Content: content,
-			Header:  header,
-		}
-
-		hash, err = object.Hash()
-		if err != nil {
-			return nil, err
-		}
-
-		if _, err := object.Save(gotRootDir); err != nil {
-			return nil, err
-		}
-
-		childName = filepath.Base(parentPath)
-		parentPath = filepath.Dir(parentPath)
-	}
-
-	return object, nil
+// header computes the header for an object file based on its content and type.
+func (o Object) header() []byte {
+	return []byte(fmt.Sprintf("%s %d\000", o.Type, len(o.Content)))
 }
 
-// Hash combines this objects type, length, and content and computes the SHA-1 hash
-// returning that as a string
-func (object Object) Hash() (string, error) {
-	fileBytes := append(object.Header, object.Content...)
+// hash computes the SHA-1 hash of an object's header + content.
+// returns hash as a hexadecimal string
+func (o Object) hash() (string, error) {
+	// combine an objects header and it's content
+	objectBytes := append(o.header(), o.Content...)
 
+	// compute the SHA-1 hash of objectBytes
 	h := sha1.New()
-	if _, err := io.Copy(h, bytes.NewReader(fileBytes)); err != nil {
+	if _, err := io.Copy(h, bytes.NewReader(objectBytes)); err != nil {
 		return "", err
 	}
 
+	// convert hash to hexadecimal string and return
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// compress combines an objects header and content and returns zlib compressed bytes
-func (object Object) compress() []byte {
-	fileBytes := append(object.Header, object.Content...)
+// compress calculates an objects zlib compressed bytes, which includes content + header
+func (o Object) compress() []byte {
+	// combine an objects header and it's content
+	objectBytes := append(o.header(), o.Content...)
 
 	var buf bytes.Buffer
 	wc := zlib.NewWriter(&buf)
-	wc.Write(fileBytes)
+	wc.Write(objectBytes)
 	wc.Close()
 
 	return buf.Bytes()
 }
 
-// uncompress takes an object files compressed bytes, uncompresses them and pareses the
-// data into an Object struct
-func uncompress(objectFile *os.File) (*Object, error) {
-	rc, err := zlib.NewReader(objectFile)
+// uncompress calculates the zlib uncompressed bytes, and puts the data in an Object struct
+func uncompress(data []byte) (*Object, error) {
+	// create zlib reader off of data bytes
+	r := bytes.NewReader(data)
+	rc, err := zlib.NewReader(r)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
 
+	// read the zlib uncompressed bytes into a buffer
 	var buf bytes.Buffer
-	_, err = buf.ReadFrom(rc)
-	if err != nil {
+	if _, err := buf.ReadFrom(rc); err != nil {
 		return nil, err
 	}
 
+	// read the bytes from the buffer up until the first null bytes, indicating end of
+	// the header
 	header, err := buf.ReadBytes('\000')
 	if err != nil {
 		return nil, err
 	}
-	objectType := string(header[:bytes.IndexByte(header, byte(' '))])
-	contentLength, err := strconv.Atoi(
-		string(
-			header[bytes.IndexByte(header, byte(' '))+1 : bytes.IndexByte(header, byte('\000'))],
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
 
-	// type mode length
+	// extract the type bytes from header, and convert to a string
+	objectType := string(header[:bytes.IndexByte(header, byte(' '))])
+
+	// read the rest of the bytes in buffer, which is the object content
+	content := buf.Bytes()
+
 	return &Object{
 		Type:    objectType,
-		Length:  contentLength,
-		Content: buf.Bytes(),
-		Header:  header,
+		Content: content,
 	}, nil
 }
 
-// Save will save this object to the specifiec got repo directory, and return it's hash
-func (object Object) Save(gotRootDir string) (string, error) {
-	objectsDir := path.Join(gotRootDir, ".got", "objects")
+// save compresses an object, and saves it to the given filePath
+func (o Object) save(filePath string) error {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return err
+	}
 
-	hash, err := object.Hash()
+	file, err := os.Create(filePath)
 	if err != nil {
-		return "", err
+		return err
 	}
-	compressedBytes := object.compress()
+	defer file.Close()
 
-	// make object directory named after first 2 bytes of sha-1 hash if it doesn't already exist
-	objectDir := path.Join(objectsDir, hash[:2])
-	if _, err := os.Stat(objectDir); os.IsNotExist(err) {
-		if err := os.Mkdir(objectDir, 0755); err != nil {
-			return "", err
-		}
-	}
+	file.Write(o.compress())
 
-	// TODO what if this file has already been added
-	// create file for storing the compressed contents of this object
-	objectFile, err := os.Create(path.Join(objectsDir, hash[:2], hash[2:]))
-	if err != nil {
-		return "", err
-	}
-	objectFile.Write(compressedBytes)
-	objectFile.Close()
-
-	return hash, nil
+	return nil
 }
 
-// Load will read in an object with the given hash, and return a pointer to a new
-// Object struct
-func Load(gotRootDir, hash string) (*Object, error) {
-	objectFilePath := path.Join(gotRootDir, ".got", "objects", hash[:2], hash[2:])
-
-	// check that the directory for an object with the given hash exists in the given objectsDir
-	if _, err := os.Stat(objectFilePath); os.IsNotExist(err) {
-		return nil, errors.New("no got object with given hash was found")
-	}
-
-	// read in the object file
-	objectFile, err := os.Open(objectFilePath)
+// load reads in an object file and returns a new Object struct witth the loaded content
+func load(filePath string) (*Object, error) {
+	fileBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	defer objectFile.Close()
 
-	return uncompress(objectFile)
+	return uncompress(fileBytes)
 }
