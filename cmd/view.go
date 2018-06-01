@@ -24,13 +24,12 @@ func init() {
 }
 
 func view(hash string) error {
-	obj, err := object.Load(gotRootDir, hash)
+	obj, err := object.LoadBlob(gotRootDir, hash)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Header: %s\n", obj.Header)
-	fmt.Printf("Content:\n%s\n", obj.Content)
+	fmt.Printf("%s\n", obj.Content)
 
 	return nil
 }
